@@ -1,0 +1,26 @@
+{
+  "name": "shadow-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-ready desktop AI operating system architecture.",
+  "workspaces": ["apps/desktop"],
+  "scripts": {
+    "dev": "concurrently -n backend,desktop -c cyan,magenta \"npm run backend:dev\" \"npm run desktop:dev\"",
+    "desktop:dev": "npm --workspace @shadow-ai/desktop run dev",
+    "desktop:build": "npm --workspace @shadow-ai/desktop run build",
+    "desktop:package": "npm --workspace @shadow-ai/desktop run package",
+    "backend:dev": "uvicorn app.main:app --reload --host 127.0.0.1 --port 8765 --app-dir services/backend",
+    "backend:test": "pytest services/backend/tests",
+    "lint": "npm --workspace @shadow-ai/desktop run lint",
+    "format": "prettier --write .",
+    "typecheck": "npm --workspace @shadow-ai/desktop run typecheck",
+    "build": "npm run desktop:build",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "prettier": "^3.3.3"
+  },
+  "engines": {"node": ">=20.0.0", "npm": ">=10.0.0"}
+}
