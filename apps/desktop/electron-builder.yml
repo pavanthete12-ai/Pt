@@ -1,0 +1,14 @@
+appId: com.shadowai.desktop
+productName: Shadow AI
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+asar: true
+mac:
+  category: public.app-category.productivity
+win:
+  target: nsis
+linux:
+  target: AppImage

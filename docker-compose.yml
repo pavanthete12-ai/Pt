@@ -1,0 +1,10 @@
+services:
+  backend:
+    build: .
+    env_file: .env.example
+    ports:
+      - "8765:8765"
+    volumes:
+      - shadow-ai-data:/app/data
+volumes:
+  shadow-ai-data:
