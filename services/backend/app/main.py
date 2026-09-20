@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
 
-from app.api.routes import core, health, plugins
+from app.api.routes import core, health, plugins, quantpulse
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
@@ -23,3 +23,4 @@ register_exception_handlers(app)
 app.include_router(health.router, prefix=settings.api_prefix)
 app.include_router(plugins.router, prefix=settings.api_prefix)
 app.include_router(core.router, prefix=settings.api_prefix)
+app.include_router(quantpulse.router, prefix=settings.api_prefix)
