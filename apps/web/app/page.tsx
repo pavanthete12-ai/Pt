@@ -68,11 +68,14 @@ export default function Home(){
   <section className="cards">
    <div><b>PCR</b><span>{intel?.pcr??"—"} {intelStatus==="provider-fed"?"• live provider snapshot":intelStatus==="partial"?"• partial":"• unavailable"}</span></div>
    <div><b>Put / Call OI</b><span>{intel?.total_put_oi??"—"} / {intel?.total_call_oi??"—"}</span></div>
-   <div><b>Max Pain</b><span>{intel?.max_pain??"—"}</span></div>
-   <div><b>India VIX</b><span>{intel?.india_vix??"—"}</span></div>
+   <div><b>Change OI</b><span>{intel?.put_change_oi??"—"} / {intel?.call_change_oi??"—"}</span></div>
+   <div><b>Max Pain / VIX</b><span>{intel?.max_pain??"—"} / {intel?.india_vix??"—"}</span></div>
   </section>
 
-  <section className="cards"><div><b>1m</b><span>{fusion?.timeframes?.["1m"]?.signal??"—"}</span></div><div><b>5m</b><span>{fusion?.timeframes?.["5m"]?.signal??"—"}</span></div><div><b>15m</b><span>{fusion?.timeframes?.["15m"]?.signal??"—"}</span></div><div><b>1h / 1D</b><span>{fusion?((fusion.timeframes["1h"]?.signal??"—")+" / "+(fusion.timeframes["1D"]?.signal??"—")):"—"}</span></div></section>
+  <section className="cards">
+   <div><b>Derivatives Bias</b><span>{intel?.derivatives_bias??"—"} {intel?.status==="provider-fed"?"• provider-fed":"• neutral until validated"}</span></div>
+   <div><b>1m</b><span>{fusion?.timeframes?.["1m"]?.signal??"—"}</span></div><div><b>5m</b><span>{fusion?.timeframes?.["5m"]?.signal??"—"}</span></div><div><b>15m / 1h / 1D</b><span>{fusion?((fusion.timeframes["15m"]?.signal??"—")+" / "+(fusion.timeframes["1h"]?.signal??"—")+" / "+(fusion.timeframes["1D"]?.signal??"—")):"—"}</span></div>
+  </section>
 
   <footer>QuantPulse is analytical software. Signals are not guaranteed returns or profit probabilities. News and derivatives inputs remain neutral when a validated provider is unavailable. Real-money execution remains locked until broker authorization, security controls and risk validation are independently verified.</footer>
  </main>
