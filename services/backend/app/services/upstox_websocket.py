@@ -52,7 +52,7 @@ class UpstoxWebsocketFeed:
         self.streamer.on("error", self._on_error)
         self.streamer.on("close", self._on_close)
         self.streamer.auto_reconnect(True, 5, 10)
-        await asyncio.to_thread(self.streamer.connect)
+        self._connect_task = asyncio.create_task(asyncio.to_thread(self.streamer.connect), name="quantpulse-upstox-ws-connect")
         self._started = True
 
     async def stop(self) -> None:
@@ -61,6 +61,9 @@ class UpstoxWebsocketFeed:
                 await asyncio.to_thread(self.streamer.disconnect)
             except Exception:
                 pass
+        connect_task = getattr(self, "_connect_task", None)
+        if connect_task and not connect_task.done():
+            connect_task.cancel()
         self.streamer = None
         self._started = False
 
