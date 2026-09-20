@@ -5,16 +5,25 @@ The endpoint never fabricates market prices.
 """
 import asyncio
 import json
+from collections import defaultdict, deque
 from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.services.quantpulse_market import OHLCV, validate_candles
+from app.services.quantpulse_engine import Candle, analyze
 
 router = APIRouter(prefix="/quantpulse/stream", tags=["quantpulse-stream"])
 _clients: set[WebSocket] = set()
 _lock = asyncio.Lock()
+_history: dict[str, deque[OHLCV]] = defaultdict(lambda: deque(maxlen=200))
 
 async def publish_candle(candle: OHLCV) -> None:
     normalized = validate_candles([candle])[0]
+    async with _lock:
+        history = _history[normalized.symbol]
+        if history and normalized.timestamp <= history[-1].timestamp:
+            return
+        history.append(normalized)
+        analysis = analyze([Candle(c.open, c.high, c.low, c.close, c.volume) for c in history]) if len(history) >= 20 else None
     payload = {
         "type": "candle",
         "symbol": normalized.symbol,
@@ -25,6 +34,8 @@ async def publish_candle(candle: OHLCV) -> None:
         "close": normalized.close,
         "volume": normalized.volume,
     }
+    if analysis is not None:
+        payload["analysis"] = analysis
     async with _lock:
         clients = list(_clients)
     dead: list[WebSocket] = []
