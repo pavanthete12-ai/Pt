@@ -8,6 +8,7 @@ from app.api.routes import (
     health,
     plugins,
     quantpulse,
+    quantpulse_market_intelligence,
     quantpulse_news,
     quantpulse_paper,
     quantpulse_provider,
@@ -17,10 +18,8 @@ from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.db.session import initialize_database
-from app.services.upstox_market_poller import UpstoxMarketPoller
 from app.services.upstox_websocket import UpstoxWebsocketFeed
 
-market_poller = UpstoxMarketPoller()
 market_websocket = UpstoxWebsocketFeed()
 
 configure_logging(settings.log_level)
@@ -42,6 +41,7 @@ app.include_router(health.router, prefix=settings.api_prefix)
 app.include_router(plugins.router, prefix=settings.api_prefix)
 app.include_router(core.router, prefix=settings.api_prefix)
 app.include_router(quantpulse.router, prefix=settings.api_prefix)
+app.include_router(quantpulse_market_intelligence.router, prefix=settings.api_prefix)
 app.include_router(quantpulse_news.router, prefix=settings.api_prefix)
 app.include_router(quantpulse_paper.router, prefix=settings.api_prefix)
 app.include_router(quantpulse_provider.router, prefix=settings.api_prefix)
