@@ -1,12 +1,11 @@
 """Deterministic QuantPulse signal engine.
 
-The engine is deliberately dependency-light so it can run in the existing FastAPI
-service. It produces an analytical signal, not a promise of returns.
+Produces an explainable analytical signal from OHLCV data. It never fabricates
+news or market data and does not represent confidence as profit probability.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import sqrt
 from statistics import mean
 from typing import Literal
 
@@ -53,7 +52,13 @@ def _atr(candles: list[Candle], period: int = 14) -> float:
     trs: list[float] = []
     for i in range(1, len(candles)):
         current, previous = candles[i], candles[i - 1]
-        trs.append(max(current.high - current.low, abs(current.high - previous.close), abs(current.low - previous.close)))
+        trs.append(
+            max(
+                current.high - current.low,
+                abs(current.high - previous.close),
+                abs(current.low - previous.close),
+            )
+        )
     return mean(trs[-period:]) if trs else 0.0
 
 
@@ -75,12 +80,44 @@ def _pattern(c: Candle) -> str:
     return "Neutral candle"
 
 
-def analyze(candles: list[Candle], news_sentiment: float = 0.0) -> dict:
-    """Return a reproducible multi-factor signal from OHLCV candles.
+def _volume_regime(candles: list[Candle], lookback: int = 20) -> tuple[float, str]:
+    volumes = [max(0.0, c.volume) for c in candles[-lookback:]]
+    if len(volumes) < 5 or mean(volumes) <= 0:
+        return 0.0, "Unavailable"
+    baseline = mean(volumes[:-1]) if len(volumes) > 1 else volumes[0]
+    if baseline <= 0:
+        return 0.0, "Unavailable"
+    ratio = volumes[-1] / baseline
+    if ratio >= 1.5:
+        return min(1.0, (ratio - 1.0) / 2.0), "Expansion"
+    if ratio <= 0.65:
+        return -0.25, "Compression"
+    return 0.0, "Normal"
 
-    news_sentiment is expected in [-1, 1]. It is kept separate from the
-    technical factors so a future licensed news provider can be plugged in.
-    """
+
+def _structure_score(candles: list[Candle], lookback: int = 20) -> tuple[float, str]:
+    recent = candles[-lookback:]
+    if len(recent) < 6:
+        return 0.0, "Insufficient history"
+    highs = [c.high for c in recent]
+    lows = [c.low for c in recent]
+    last = recent[-1]
+    prior_high = max(highs[:-1])
+    prior_low = min(lows[:-1])
+    if last.close > prior_high:
+        return 1.0, "Upside breakout"
+    if last.close < prior_low:
+        return -1.0, "Downside breakdown"
+    midpoint = (prior_high + prior_low) / 2
+    distance = (last.close - midpoint) / max(prior_high - prior_low, 1e-9)
+    if distance > 0.25:
+        return 0.35, "Upper-range structure"
+    if distance < -0.25:
+        return -0.35, "Lower-range structure"
+    return 0.0, "Range"
+
+
+def analyze(candles: list[Candle], news_sentiment: float = 0.0) -> dict:
     if len(candles) < 20:
         raise ValueError("At least 20 candles are required")
 
@@ -92,15 +129,34 @@ def analyze(candles: list[Candle], news_sentiment: float = 0.0) -> dict:
     trend = 1.0 if ema9 > ema21 else -1.0
     momentum = max(-1.0, min(1.0, (rsi - 50) / 25))
     pattern_name = _pattern(last)
-    pattern = 1.0 if "Bullish" in pattern_name else -1.0 if "Bearish" in pattern_name else 0.0
+    pattern = (
+        1.0 if "Bullish" in pattern_name
+        else -1.0 if "Bearish" in pattern_name
+        else 0.0
+    )
+    structure, structure_label = _structure_score(candles)
+    volume, volume_regime = _volume_regime(candles)
     news = max(-1.0, min(1.0, news_sentiment))
 
-    score = 0.40 * trend + 0.25 * momentum + 0.20 * pattern + 0.15 * news
+    # Technical structure carries most of the score. News is optional and
+    # remains neutral until a validated provider supplies a timestamped signal.
+    score = (
+        0.30 * trend
+        + 0.20 * momentum
+        + 0.15 * pattern
+        + 0.20 * structure
+        + 0.10 * volume
+        + 0.05 * news
+    )
     signal: Signal = "BUY" if score >= 0.25 else "SELL" if score <= -0.25 else "HOLD"
 
-    # This is a model-strength score, not a probability of profit.
     confidence = round(min(99.0, 50.0 + abs(score) * 45.0), 1)
-    regime = "Bullish" if trend > 0 and momentum >= 0 else "Bearish" if trend < 0 and momentum <= 0 else "Mixed"
+    if trend > 0 and momentum >= 0 and structure >= 0:
+        regime = "Bullish"
+    elif trend < 0 and momentum <= 0 and structure <= 0:
+        regime = "Bearish"
+    else:
+        regime = "Mixed"
 
     stop_distance = max(atr * 1.5, last.close * 0.003)
     if signal == "BUY":
@@ -122,11 +178,24 @@ def analyze(candles: list[Candle], news_sentiment: float = 0.0) -> dict:
         "trend": "BULLISH" if trend > 0 else "BEARISH",
         "momentum": round(momentum, 3),
         "pattern": pattern_name,
+        "structure": structure_label,
+        "structure_score": round(structure, 3),
+        "volume_regime": volume_regime,
+        "volume_score": round(volume, 3),
         "news_sentiment": round(news, 3),
+        "news_status": "provider-fed" if news != 0 else "neutral-no-provider",
         "market_regime": regime,
+        "factor_contributions": {
+            "trend": round(0.30 * trend, 4),
+            "momentum": round(0.20 * momentum, 4),
+            "pattern": round(0.15 * pattern, 4),
+            "structure": round(0.20 * structure, 4),
+            "volume": round(0.10 * volume, 4),
+            "news": round(0.05 * news, 4),
+        },
         "stop_loss": round(stop, 2),
         "target": round(target, 2),
         "risk_reward": 2.0,
         "data_quality": "OK",
-        "disclaimer": "Analytical model output; not a guaranteed return or probability of profit.",
+        "disclaimer": "Analytical model strength; not a guaranteed return or probability of profit.",
     }
