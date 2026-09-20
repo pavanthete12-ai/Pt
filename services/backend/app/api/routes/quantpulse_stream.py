@@ -12,11 +12,13 @@ from app.services.quantpulse_market import OHLCV, validate_candles
 from app.services.quantpulse_engine import Candle, analyze
 from app.db.session import AsyncSessionLocal
 from app.services.quantpulse_paper_manager import process_candle_for_paper_positions
+from app.services.quantpulse_mtf import MultiTimeframeAnalyzer, fuse_timeframes
 
 router = APIRouter(prefix="/quantpulse/stream", tags=["quantpulse-stream"])
 _clients: set[WebSocket] = set()
 _lock = asyncio.Lock()
 _history: dict[str, deque[OHLCV]] = defaultdict(lambda: deque(maxlen=200))
+_mtf = MultiTimeframeAnalyzer()
 
 async def publish_candle(candle: OHLCV) -> None:
     normalized = validate_candles([candle])[0]
@@ -25,7 +27,10 @@ async def publish_candle(candle: OHLCV) -> None:
         if history and normalized.timestamp <= history[-1].timestamp:
             return
         history.append(normalized)
-        analysis = analyze([Candle(c.open, c.high, c.low, c.close, c.volume) for c in history]) if len(history) >= 20 else None
+        engine_candles = [Candle(c.open, c.high, c.low, c.close, c.volume) for c in history]
+        analysis = analyze(engine_candles) if len(history) >= 20 else None
+        mtf = _mtf.update(normalized.symbol, engine_candles[-1], normalized.timestamp)
+        fusion = fuse_timeframes(mtf) if mtf else None
     payload = {
         "type": "candle",
         "symbol": normalized.symbol,
@@ -38,6 +43,9 @@ async def publish_candle(candle: OHLCV) -> None:
     }
     if analysis is not None:
         payload["analysis"] = analysis
+    if mtf:
+        payload["timeframes"] = mtf
+        payload["fusion"] = fusion
     async with AsyncSessionLocal() as session:
         await process_candle_for_paper_positions(session, symbol=normalized.symbol, high=normalized.high, low=normalized.low, close=normalized.close)
     async with _lock:
