@@ -5,6 +5,7 @@ from app.db.session import get_session
 from app.services.quantpulse_paper import close_order, create_order, list_orders
 from app.services.quantpulse_risk import RiskLimits, validate_order
 from app.services.quantpulse_audit import record
+from app.services.quantpulse_paper_manager import daily_realized_pnl
 
 router = APIRouter(prefix="/quantpulse/paper", tags=["quantpulse-paper"])
 
@@ -28,6 +29,10 @@ async def create_paper_order(request: PaperOrderRequest, session: AsyncSession =
         validate_order(side=request.side, quantity=request.quantity, entry_price=request.entry_price, stop_loss=request.stop_loss, limits=RiskLimits())
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    limits = RiskLimits()
+    realized_today = await daily_realized_pnl(session)
+    if realized_today <= -limits.max_daily_loss:
+        raise HTTPException(429, "Daily loss limit reached; new paper orders are locked")
     order = await create_order(session, **request.model_dump())
     await record(session, event_type="PAPER_ORDER_CREATED", symbol=request.symbol, signal=request.side, price=request.entry_price, details=request.model_dump())
     return serialize(order)
