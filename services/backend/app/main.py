@@ -8,6 +8,7 @@ from app.api.routes import (
     health,
     plugins,
     quantpulse,
+    quantpulse_fusion,
     quantpulse_intelligence,
     quantpulse_market_intelligence,
     quantpulse_news,
@@ -42,6 +43,7 @@ app.include_router(health.router, prefix=settings.api_prefix)
 app.include_router(plugins.router, prefix=settings.api_prefix)
 app.include_router(core.router, prefix=settings.api_prefix)
 app.include_router(quantpulse.router, prefix=settings.api_prefix)
+app.include_router(quantpulse_fusion.router, prefix=settings.api_prefix)
 app.include_router(quantpulse_intelligence.router, prefix=settings.api_prefix)
 app.include_router(quantpulse_market_intelligence.router, prefix=settings.api_prefix)
 app.include_router(quantpulse_news.router, prefix=settings.api_prefix)
