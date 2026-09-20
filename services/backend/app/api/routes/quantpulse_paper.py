@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_session
 from app.services.quantpulse_paper import close_order, create_order, list_orders
+from app.services.quantpulse_risk import RiskLimits, validate_order
+from app.services.quantpulse_audit import record
 
 router = APIRouter(prefix="/quantpulse/paper", tags=["quantpulse-paper"])
 
@@ -22,11 +24,12 @@ def serialize(order):
 
 @router.post("/orders", status_code=201)
 async def create_paper_order(request: PaperOrderRequest, session: AsyncSession = Depends(get_session)):
-    if request.side == "BUY" and request.stop_loss >= request.entry_price:
-        raise HTTPException(422, "BUY stop loss must be below entry price")
-    if request.side == "SELL" and request.stop_loss <= request.entry_price:
-        raise HTTPException(422, "SELL stop loss must be above entry price")
+    try:
+        validate_order(side=request.side, quantity=request.quantity, entry_price=request.entry_price, stop_loss=request.stop_loss, limits=RiskLimits())
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     order = await create_order(session, **request.model_dump())
+    await record(session, event_type="PAPER_ORDER_CREATED", symbol=request.symbol, signal=request.side, price=request.entry_price, details=request.model_dump())
     return serialize(order)
 
 @router.get("/orders")
@@ -41,6 +44,8 @@ async def close_paper_order(order_id: int, request: CloseOrderRequest, session: 
     if not order:
         raise HTTPException(404, "Paper order not found")
     try:
-        return serialize(await close_order(session, order, request.exit_price))
+        closed = await close_order(session, order, request.exit_price)
+        await record(session, event_type="PAPER_ORDER_CLOSED", symbol=closed.symbol, signal=closed.side, price=request.exit_price, details={"order_id": order_id, "realized_pnl": closed.realized_pnl})
+        return serialize(closed)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
