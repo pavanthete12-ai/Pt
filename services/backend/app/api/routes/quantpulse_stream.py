@@ -10,6 +10,8 @@ from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.services.quantpulse_market import OHLCV, validate_candles
 from app.services.quantpulse_engine import Candle, analyze
+from app.db.session import AsyncSessionLocal
+from app.services.quantpulse_paper_manager import process_candle_for_paper_positions
 
 router = APIRouter(prefix="/quantpulse/stream", tags=["quantpulse-stream"])
 _clients: set[WebSocket] = set()
@@ -36,6 +38,8 @@ async def publish_candle(candle: OHLCV) -> None:
     }
     if analysis is not None:
         payload["analysis"] = analysis
+    async with AsyncSessionLocal() as session:
+        await process_candle_for_paper_positions(session, symbol=normalized.symbol, high=normalized.high, low=normalized.low, close=normalized.close)
     async with _lock:
         clients = list(_clients)
     dead: list[WebSocket] = []
