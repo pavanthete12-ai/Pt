@@ -1,0 +1,1 @@
+{"buildCommand":"npm install && npm --workspace @shadow-ai/web run build","outputDirectory":"apps/web/.next","framework":"nextjs"}
