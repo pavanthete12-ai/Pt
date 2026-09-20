@@ -21,7 +21,7 @@ class SignalRequest(BaseModel):
 
 @router.get("/health")
 async def health():
-    return {"service":"QuantPulse","mode":"analysis-only","live_execution":False}
+    return {"service":"QuantPulse","mode":"analysis","live_execution":False,"market_data_provider":"external_adapter_required"}
 
 @router.post("/signal")
 async def signal(request: SignalRequest):
