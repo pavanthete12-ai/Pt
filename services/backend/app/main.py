@@ -8,13 +8,20 @@ from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.db.session import initialize_database
+from app.services.upstox_market_poller import UpstoxMarketPoller
+
+market_poller = UpstoxMarketPoller()
 
 configure_logging(settings.log_level)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await initialize_database()
-    yield
+    await market_poller.start()
+    try:
+        yield
+    finally:
+        await market_poller.stop()
 
 app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
 register_exception_handlers(app)
