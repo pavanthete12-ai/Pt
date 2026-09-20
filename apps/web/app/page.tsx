@@ -3,9 +3,24 @@ import {useEffect,useState} from "react";
 
 const symbols=["NIFTY 50","BANKNIFTY","RELIANCE","TCS","INFY","HDFCBANK"];
 const timeframes=["1m","5m","15m","1h","1D"];
+const instrumentKeys:Record<string,string>={
+ "NIFTY 50":"NSE_INDEX|Nifty 50",
+ "BANKNIFTY":"NSE_INDEX|Nifty Bank",
+};
 
 export default function Home(){
- const [symbol,setSymbol]=useState("NIFTY 50"),[live,setLive]=useState(false),[connected,setConnected]=useState(false),[last,setLast]=useState<number|null>(null),[analysis,setAnalysis]=useState<any>(null),[fusion,setFusion]=useState<any>(null),[selectedTf,setSelectedTf]=useState("5m");
+ const [symbol,setSymbol]=useState("NIFTY 50"),[live,setLive]=useState(false),[connected,setConnected]=useState(false),[last,setLast]=useState<number|null>(null),[analysis,setAnalysis]=useState<any>(null),[fusion,setFusion]=useState<any>(null),[selectedTf,setSelectedTf]=useState("5m"),[intel,setIntel]=useState<any>(null),[intelStatus,setIntelStatus]=useState("not-requested");
+
+ useEffect(()=>{
+  const key=instrumentKeys[symbol];
+  if(!key){setIntel(null);setIntelStatus("not-supported");return;}
+  const base=process.env.NEXT_PUBLIC_QUANTPULSE_API_URL||"http://localhost:8000/api/v1";
+  setIntelStatus("loading");
+  fetch(base+"/quantpulse/market-intelligence/"+encodeURIComponent(key)+"?expiry=current_week")
+   .then(async r=>{if(!r.ok)throw new Error("provider unavailable");return r.json();})
+   .then(data=>{setIntel(data);setIntelStatus(data.status||"provider-fed");})
+   .catch(()=>{setIntel(null);setIntelStatus("unavailable");});
+ },[symbol]);
 
  useEffect(()=>{
   if(!live)return;
@@ -24,7 +39,7 @@ export default function Home(){
 
  return <main>
   <header><div><b>⚡ QuantPulse</b><span> Market Intelligence Terminal</span></div><div className="status">{connected?"LIVE STREAM CONNECTED":live?"LIVE GATE ARMED":"PAPER MODE"}</div></header>
-  <section className="hero"><div><p className="eyebrow">QUANTPULSE TERMINAL</p><h1>Multi-timeframe market intelligence in one terminal.</h1><p className="muted">Provider-fed OHLCV, technical structure, volatility, volume and multi-timeframe fusion. Paper trading remains the default.</p></div><div className="gate"><button onClick={()=>setLive(!live)}>{live?"Disable live stream":"Connect live stream"}</button><small>Market-data streaming and real-money execution are separate controls.</small></div></section>
+  <section className="hero"><div><p className="eyebrow">QUANTPULSE TERMINAL</p><h1>Multi-timeframe market intelligence in one terminal.</h1><p className="muted">Provider-fed OHLCV, technical structure, volatility, volume, derivatives context and multi-timeframe fusion. Paper trading remains the default.</p></div><div className="gate"><button onClick={()=>setLive(!live)}>{live?"Disable live stream":"Connect live stream"}</button><small>Market-data streaming and real-money execution are separate controls.</small></div></section>
   <nav>{symbols.map(s=><button className={s===symbol?"active":""} onClick={()=>setSymbol(s)} key={s}>{s}</button>)}</nav>
 
   <section className="grid"><article className="chart"><div className="cardhead"><div><strong>{symbol}</strong><div className="muted">{selectedTf} • provider-fed market structure</div></div><div className="liveDot">{connected?"● LIVE":"○ DISCONNECTED"}</div></div>
@@ -50,8 +65,15 @@ export default function Home(){
    <div><b>Structure</b><span>{factors?factors.structure+" • "+analysis.structure_score:"—"}</span></div>
   </section>
 
+  <section className="cards">
+   <div><b>PCR</b><span>{intel?.pcr??"—"} {intelStatus==="provider-fed"?"• live provider snapshot":intelStatus==="partial"?"• partial":"• unavailable"}</span></div>
+   <div><b>Put / Call OI</b><span>{intel?.total_put_oi??"—"} / {intel?.total_call_oi??"—"}</span></div>
+   <div><b>Max Pain</b><span>{intel?.max_pain??"—"}</span></div>
+   <div><b>India VIX</b><span>{intel?.india_vix??"—"}</span></div>
+  </section>
+
   <section className="cards"><div><b>1m</b><span>{fusion?.timeframes?.["1m"]?.signal??"—"}</span></div><div><b>5m</b><span>{fusion?.timeframes?.["5m"]?.signal??"—"}</span></div><div><b>15m</b><span>{fusion?.timeframes?.["15m"]?.signal??"—"}</span></div><div><b>1h / 1D</b><span>{fusion?((fusion.timeframes["1h"]?.signal??"—")+" / "+(fusion.timeframes["1D"]?.signal??"—")):"—"}</span></div></section>
 
-  <footer>QuantPulse is analytical software. Signals are not guaranteed returns or profit probabilities. News remains neutral until a validated provider is connected. Real-money execution remains locked until broker authorization, security controls and risk validation are independently verified.</footer>
+  <footer>QuantPulse is analytical software. Signals are not guaranteed returns or profit probabilities. News and derivatives inputs remain neutral when a validated provider is unavailable. Real-money execution remains locked until broker authorization, security controls and risk validation are independently verified.</footer>
  </main>
 }
