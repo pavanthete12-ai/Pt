@@ -1,0 +1,36 @@
+name: Deploy QuantPulse Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "package.json"
+      - "vercel.json"
+      - ".github/workflows/deploy-vercel.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm install
+
+      - name: Build web
+        run: npm --workspace @shadow-ai/web run build
+        env:
+          NEXT_PUBLIC_QUANTPULSE_API_URL: ${{ secrets.NEXT_PUBLIC_QUANTPULSE_API_URL }}
+          NEXT_PUBLIC_QUANTPULSE_WS_URL: ${{ secrets.NEXT_PUBLIC_QUANTPULSE_WS_URL }}
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@54.17.2
+
+      - name: Deploy production
+        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
