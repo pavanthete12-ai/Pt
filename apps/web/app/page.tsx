@@ -1,82 +1,15 @@
 "use client";
-import {useEffect,useState} from "react";
-
-const symbols=["NIFTY 50","BANKNIFTY","RELIANCE","TCS","INFY","HDFCBANK"];
-const timeframes=["1m","5m","15m","1h","1D"];
-const instrumentKeys:Record<string,string>={
- "NIFTY 50":"NSE_INDEX|Nifty 50",
- "BANKNIFTY":"NSE_INDEX|Nifty Bank",
-};
-
+import {useEffect,useMemo,useRef,useState} from "react";
+type Candle=[number,string,string,string,string,string,number,string,number,string,string,string];
+type OptionRow={instrument_name:string;mark_price:number|null;strike:number;option_type:"call"|"put";expiration_timestamp:number};
+const ema=(v:number[],p:number)=>{if(v.length<p)return null;const k=2/(p+1);let e=v.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<v.length;i++)e=v[i]*k+e*(1-k);return e};
+const rsi=(v:number[],p=14)=>{if(v.length<p+1)return 50;let g=0,l=0;for(let i=v.length-p;i<v.length;i++){const d=v[i]-v[i-1];if(d>0)g+=d;else l-=d}return l===0?100:100-100/(1+g/l)};
+const atr=(c:Candle[],p=14)=>{const t:number[]=[];for(let i=1;i<c.length;i++){const h=+c[i][2],lo=+c[i][3],pc=+c[i-1][4];t.push(Math.max(h-lo,Math.abs(h-pc),Math.abs(lo-pc)))}return t.slice(-p).reduce((a,b)=>a+b,0)/p};
+const pct=(n:number)=>(n*100).toFixed(2)+"%";
 export default function Home(){
- const [symbol,setSymbol]=useState("NIFTY 50"),[live,setLive]=useState(false),[connected,setConnected]=useState(false),[last,setLast]=useState<number|null>(null),[analysis,setAnalysis]=useState<any>(null),[fusion,setFusion]=useState<any>(null),[selectedTf,setSelectedTf]=useState("5m"),[intel,setIntel]=useState<any>(null),[intelStatus,setIntelStatus]=useState("not-requested");
-
- useEffect(()=>{
-  const key=instrumentKeys[symbol];
-  if(!key){setIntel(null);setIntelStatus("not-supported");return;}
-  const base=process.env.NEXT_PUBLIC_QUANTPULSE_API_URL||"http://localhost:8000/api/v1";
-  setIntelStatus("loading");
-  fetch(base+"/quantpulse/market-intelligence/"+encodeURIComponent(key)+"?expiry=current_week")
-   .then(async r=>{if(!r.ok)throw new Error("provider unavailable");return r.json();})
-   .then(data=>{setIntel(data);setIntelStatus(data.status||"provider-fed");})
-   .catch(()=>{setIntel(null);setIntelStatus("unavailable");});
- },[symbol]);
-
- useEffect(()=>{
-  if(!live)return;
-  const base=process.env.NEXT_PUBLIC_QUANTPULSE_WS_URL;
-  if(!base)return;
-  const ws=new WebSocket(base);
-  ws.onopen=()=>{setConnected(true);ws.send(JSON.stringify({type:"subscribe",symbol,timeframe:selectedTf}));};
-  ws.onclose=()=>setConnected(false);
-  ws.onerror=()=>setConnected(false);
-  ws.onmessage=e=>{try{const p=JSON.parse(e.data);if(p.type==="candle"&&p.symbol===symbol){setLast(Number(p.close));if(p.analysis)setAnalysis(p.analysis);if(p.fusion)setFusion(p.fusion);}}catch{}};
-  return()=>{try{ws.send(JSON.stringify({type:"unsubscribe",symbol,timeframe:selectedTf}))}catch{}ws.close();setConnected(false);setAnalysis(null);setFusion(null);};
- },[live,symbol,selectedTf]);
-
- const tf=fusion?.timeframes?.[selectedTf];
- const factors=analysis?.factor_contributions;
-
- return <main>
-  <header><div><b>⚡ QuantPulse</b><span> Market Intelligence Terminal</span></div><div className="status">{connected?"LIVE STREAM CONNECTED":live?"LIVE GATE ARMED":"PAPER MODE"}</div></header>
-  <section className="hero"><div><p className="eyebrow">QUANTPULSE TERMINAL</p><h1>Multi-timeframe market intelligence in one terminal.</h1><p className="muted">Provider-fed OHLCV, technical structure, volatility, volume, derivatives context and multi-timeframe fusion. Paper trading remains the default.</p></div><div className="gate"><button onClick={()=>setLive(!live)}>{live?"Disable live stream":"Connect live stream"}</button><small>Market-data streaming and real-money execution are separate controls.</small></div></section>
-  <nav>{symbols.map(s=><button className={s===symbol?"active":""} onClick={()=>setSymbol(s)} key={s}>{s}</button>)}</nav>
-
-  <section className="grid"><article className="chart"><div className="cardhead"><div><strong>{symbol}</strong><div className="muted">{selectedTf} • provider-fed market structure</div></div><div className="liveDot">{connected?"● LIVE":"○ DISCONNECTED"}</div></div>
-   <div className="tfbar">{timeframes.map(t=><button className={t===selectedTf?"active":""} onClick={()=>setSelectedTf(t)} key={t}>{t}</button>)}</div>
-   <div className="chartbox"><div className="price">{last?last.toFixed(2):"—"}</div><div className="empty">{connected?"Waiting for validated OHLCV candles…":"Connect an authorized market-data provider to stream live candles."}</div></div>
-  </article>
-
-  <aside><div className="signal"><p>MTF FUSION SIGNAL</p><h2>{fusion?.signal??"WAITING"}</h2><div className="confidence">{fusion?fusion.confidence+"%":"—"}</div><span>Model agreement strength, not profit probability.</span></div>
-   <div className="risk"><p>RISK ENGINE</p><div>Entry <b>{last?.toFixed(2)??"—"}</b></div><div>Stop loss <b>{analysis?.stop_loss??"—"}</b></div><div>Target <b>{analysis?.target??"—"}</b></div><div>R:R <b>{analysis?.risk_reward??"—"}</b></div></div>
-  </aside></section>
-
-  <section className="cards">
-   <div><b>{selectedTf} Structure</b><span>{tf?tf.trend+" • "+(tf.signal??"—")+" • "+tf.confidence+"%":"Waiting for timeframe data"}</span></div>
-   <div><b>Market Regime</b><span>{analysis?.market_regime??"Waiting for analysis"}</span></div>
-   <div><b>Structure</b><span>{analysis?.structure??"Waiting for candles"}</span></div>
-   <div><b>Volume</b><span>{analysis?.volume_regime??"Waiting for candles"}</span></div>
-  </section>
-
-  <section className="cards">
-   <div><b>Trend</b><span>{factors?factors.trend:"—"}</span></div>
-   <div><b>Momentum</b><span>{factors?factors.momentum+" • RSI "+analysis.rsi:"—"}</span></div>
-   <div><b>Pattern</b><span>{factors?factors.pattern+" • "+analysis.pattern:"—"}</span></div>
-   <div><b>Structure</b><span>{factors?factors.structure+" • "+analysis.structure_score:"—"}</span></div>
-  </section>
-
-  <section className="cards">
-   <div><b>PCR</b><span>{intel?.pcr??"—"} {intelStatus==="provider-fed"?"• live provider snapshot":intelStatus==="partial"?"• partial":"• unavailable"}</span></div>
-   <div><b>Put / Call OI</b><span>{intel?.total_put_oi??"—"} / {intel?.total_call_oi??"—"}</span></div>
-   <div><b>Change OI</b><span>{intel?.put_change_oi??"—"} / {intel?.call_change_oi??"—"}</span></div>
-   <div><b>Max Pain / VIX</b><span>{intel?.max_pain??"—"} / {intel?.india_vix??"—"}</span></div>
-  </section>
-
-  <section className="cards">
-   <div><b>Derivatives Bias</b><span>{intel?.derivatives_bias??"—"} {intel?.status==="provider-fed"?"• provider-fed":"• neutral until validated"}</span></div>
-   <div><b>1m</b><span>{fusion?.timeframes?.["1m"]?.signal??"—"}</span></div><div><b>5m</b><span>{fusion?.timeframes?.["5m"]?.signal??"—"}</span></div><div><b>15m / 1h / 1D</b><span>{fusion?((fusion.timeframes["15m"]?.signal??"—")+" / "+(fusion.timeframes["1h"]?.signal??"—")+" / "+(fusion.timeframes["1D"]?.signal??"—")):"—"}</span></div>
-  </section>
-
-  <footer>QuantPulse is analytical software. Signals are not guaranteed returns or profit probabilities. News and derivatives inputs remain neutral when a validated provider is unavailable. Real-money execution remains locked until broker authorization, security controls and risk validation are independently verified.</footer>
- </main>
-}
+const[candles,setCandles]=useState<Candle[]>([]),[price,setPrice]=useState(0),[options,setOptions]=useState<OptionRow[]>([]),[funding,setFunding]=useState(0),[oi,setOi]=useState(0),[news,setNews]=useState<{title:string;link:string}[]>([]),[status,setStatus]=useState("CONNECTING");const ws=useRef<WebSocket|null>(null);
+const load=async()=>{try{const k=await fetch("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=200",{cache:"no-store"}).then(r=>r.json());setCandles(k);setPrice(+k[k.length-1][4]);const[fr,or]=await Promise.all([fetch("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT").then(r=>r.json()),fetch("https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT").then(r=>r.json())]);setFunding(+(fr.lastFundingRate||0));setOi(+(or.openInterest||0));const od=await fetch("https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option").then(r=>r.json());setOptions((od.result||[]).map((x:any)=>{const m=x.instrument_name.match(/^BTC-(\d+)-(\d+)-(C|P)$/);return m?{instrument_name:x.instrument_name,mark_price:x.mark_price,strike:+m[2],option_type:m[3]==="C"?"call":"put",expiration_timestamp:+m[1]}:null}).filter(Boolean));const rss="https://news.google.com/rss/search?q=bitcoin%20when:1d&hl=en-US&gl=US&ceid=US:en";const nr=await fetch("https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(rss)).then(r=>r.json());setNews((nr.items||[]).slice(0,6).map((x:any)=>({title:x.title,link:x.link})))}catch(e){console.error(e)}};
+useEffect(()=>{load();const t=setInterval(load,30000);ws.current=new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@trade");ws.current.onopen=()=>setStatus("LIVE");ws.current.onmessage=e=>{try{setPrice(+JSON.parse(e.data).p)}catch{}};ws.current.onclose=()=>setStatus("RECONNECTING");return()=>{clearInterval(t);ws.current?.close()}},[]);
+const model=useMemo(()=>{if(!candles.length)return null;const c=candles.map(x=>+x[4]),h=candles.map(x=>+x[2]),l=candles.map(x=>+x[3]),v=candles.map(x=>+x[5]);const e9=ema(c,9)!,e21=ema(c,21)!,e50=ema(c,50)!,rr=rsi(c),a=atr(candles),macd=(ema(c,12)||price)-(ema(c,26)||price),mid=c.slice(-20).reduce((a,b)=>a+b,0)/20,avg=v.slice(-20).reduce((a,b)=>a+b,0)/20,vr=v.at(-1)!/avg,rh=Math.max(...h.slice(-20)),rl=Math.min(...l.slice(-20));let s=0;s+=e9>e21?16:-16;s+=e21>e50?14:-14;s+=rr>55?10:rr<45?-10:0;s+=macd>0?10:-10;s+=vr>1.25?(price>c.at(-2)!?8:-8):0;s+=price>mid?6:-6;s+=price>rh*.998?8:price<rl*1.002?-8:0;const up=Math.max(5,Math.min(95,50+s*.5)),down=100-up,dir=up>=57?"UP":down>=57?"DOWN":"NEUTRAL",range=Math.max(a,price*.0015),pred=price+(up-down)/100*range*.9,confirm=dir==="UP"?Math.max(e9,rh):dir==="DOWN"?Math.min(e9,rl):price,invalid=dir==="UP"?Math.min(e21,price-range*.6):dir==="DOWN"?Math.max(e21,price+range*.6):price;return{e9,e21,rr,a,macd,mid,vr,up,down,dir,range,pred,confirm,invalid}},[candles,price]);
+const nearest=useMemo(()=>{const f=options.filter(o=>o.expiration_timestamp>Date.now()+7200000).sort((a,b)=>Math.abs(a.strike-price)-Math.abs(b.strike-price));return{call:f.find(o=>o.option_type==="call"),put:f.find(o=>o.option_type==="put")}},[options,price]);const fmt=(n:number|null|undefined)=>n==null?"—":n.toLocaleString("en-US",{maximumFractionDigits:2});
+return <main><header className="top"><div><span className="logo">₿</span><b>BTC NEXT-CANDLE AI</b><span className="live">● {status}</span></div><button onClick={load}>↻ Refresh</button></header><section className="hero"><div><span className="label">BTC / USDT</span><div className="price">{"$"+fmt(price)}</div><div className="sub">Live trade stream · 5-minute model</div></div><div className={"signal "+(model?.dir==="UP"?"up":model?.dir==="DOWN"?"down":"neutral")}><small>NEXT CANDLE</small><strong>{model?.dir==="UP"?"🟢 BUY BIAS":model?.dir==="DOWN"?"🔴 SELL BIAS":"🟡 WAIT"}</strong><span>{model?Math.max(model.up,model.down).toFixed(1):"—"}% model probability</span></div></section><section className="grid"><div className="card chart"><div className="cardhead"><b>Price / prediction</b><span>Live BTCUSDT</span></div><svg viewBox="0 0 800 260" preserveAspectRatio="none">{candles.length>2&&(()=>{const v=candles.slice(-80).map(x=>+x[4]),mn=Math.min(...v),mx=Math.max(...v),pts=v.map((x,i)=>i/(v.length-1)*800+","+(250-(x-mn)/(mx-mn||1)*220)).join(" ");return <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="3"/>})()}</svg><div className="axis"><span>−80 candles</span><span>NOW</span><span>NEXT</span></div></div><div className="card prediction"><div className="cardhead"><b>Forecast engine</b><span>Multi-factor</span></div>{model&&<><div className="forecast"><div><small>Expected next close</small><b>{"$"+fmt(model.pred)}</b></div><div><small>Expected range</small><b>{"$"+fmt(price-model.range)+" — $"+fmt(price+model.range)}</b></div></div><div className="bars"><div><span>UP</span><i style={{width:model.up+"%"}}/><b>{model.up.toFixed(1)}%</b></div><div><span>DOWN</span><i style={{width:model.down+"%"}}/><b>{model.down.toFixed(1)}%</b></div></div><div className="levels"><span>Confirmation <b>{"$"+fmt(model.confirm)}</b></span><span>Invalidation <b>{"$"+fmt(model.invalid)}</b></span></div></>}</div><div className="card"><div className="cardhead"><b>Signal matrix</b><span>5m</span></div>{model&&<div className="matrix">{[["EMA trend",model.e9>model.e21?"BULLISH":"BEARISH"],["RSI 14",model.rr.toFixed(1)],["MACD",model.macd>0?"POSITIVE":"NEGATIVE"],["Volume",model.vr.toFixed(2)+"× avg"],["Structure",price>model.mid?"ABOVE MID":"BELOW MID"],["ATR",fmt(model.a)]].map(([a,b])=><div key={a}><span>{a}</span><b className={String(b).includes("BULL")||String(b)==="POSITIVE"?"good":String(b).includes("BEAR")||String(b)==="NEGATIVE"?"bad":""}>{b}</b></div>)}</div>}</div><div className="card"><div className="cardhead"><b>Derivatives</b><span>Live</span></div><div className="matrix"><div><span>Funding</span><b>{pct(funding)}</b></div><div><span>Futures OI</span><b>{fmt(oi)} BTC</b></div><div><span>CALL</span><b>{nearest.call?.instrument_name||"—"} · {nearest.call?.mark_price?.toFixed(4)||"—"} BTC</b></div><div><span>PUT</span><b>{nearest.put?.instrument_name||"—"} · {nearest.put?.mark_price?.toFixed(4)||"—"} BTC</b></div></div></div><div className="card news"><div className="cardhead"><b>BTC news layer</b><span>24h</span></div>{news.length?news.map(n=><a href={n.link} target="_blank" rel="noreferrer" key={n.link}>• {n.title}</a>):<p className="muted">News feed unavailable.</p>}</div><div className="card"><div className="cardhead"><b>Execution map</b><span>Model only</span></div>{model&&<><div className="tradeRow"><span>🟢 Long trigger</span><b>{"$"+fmt(model.confirm)}</b></div><div className="tradeRow"><span>🎯 Long target</span><b>{"$"+fmt(model.confirm+model.range)}</b></div><div className="tradeRow"><span>🔴 Short trigger</span><b>{"$"+fmt(model.invalid)}</b></div><div className="tradeRow"><span>🎯 Short target</span><b>{"$"+fmt(model.invalid-model.range)}</b></div></>}<p className="warning">Probabilistic analytics only. No signal is guaranteed.</p></div></section><footer>Binance live BTC market + futures · Deribit public options · Google News RSS · 30s refresh</footer></main>}
