@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#081225">
+<meta name="description" content="Parcel Empire — Idle Logistics Tycoon">
+<title>Parcel Empire — Idle Logistics Tycoon</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div id="app">
+<header class="topbar">
+  <div class="brand"><div class="brandmark">🚚</div><div><b>PARCEL EMPIRE</b><span>Idle Logistics Tycoon</span></div></div>
+  <div class="wallet"><div>💰 <strong id="cash">10,000</strong></div><div>💎 <strong id="gems">100</strong></div></div>
+</header>
+
+<main class="shell">
+<section class="hero">
+  <div class="hero-copy">
+    <span class="eyebrow">SEASON 01 • CITY RUSH</span>
+    <h1>Build your <em>logistics empire.</em></h1>
+    <p>Sort. Pack. Dispatch. Automate. Grow from one tiny warehouse into a global delivery network.</p>
+    <div class="hero-actions"><button class="primary" onclick="dispatch()">🚚 Dispatch Fleet</button><button class="secondary" onclick="openCEO()">🤖 Ask CEO AI</button></div>
+  </div>
+  <div class="city-scene">
+    <div class="sun"></div><div class="cloud c1"></div><div class="cloud c2"></div>
+    <div class="cityline"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="road"></div><div class="truck" id="heroTruck">🚚</div>
+    <div class="warehouse"><div class="sign">PE</div><div class="door"></div><div class="boxes">📦📦📦</div></div>
+  </div>
+</section>
+
+<section class="stats">
+  <div class="stat"><span>Revenue / sec</span><b id="rps">24</b><small>+<span id="growth">12</span>% efficiency</small></div>
+  <div class="stat"><span>Orders / min</span><b id="orders">18</b><small>Capacity <span id="capacity">120</span></small></div>
+  <div class="stat"><span>Warehouse</span><b>Lv.<span id="warehouseLevel">1</span></b><small id="warehouseStatus">Operating</small></div>
+  <div class="stat"><span>City</span><b>Mumbai</b><small>Tier 1 unlocked</small></div>
+</section>
+
+<section class="game-grid">
+  <div class="panel warehouse-panel">
+    <div class="panel-head"><div><span class="eyebrow">LIVE OPERATIONS</span><h2>Central Warehouse</h2></div><span class="live">● LIVE</span></div>
+    <div class="warehouse-floor">
+      <div class="machine sorter"><div class="machine-icon">🤖</div><b>Smart Sorter</b><small>Lvl <span id="sorterLevel">1</span> • <span id="sorterSpeed">12</span> pkg/min</small><button onclick="upgrade('sorter')">Upgrade • <span id="sorterCost">500</span></button></div>
+      <div class="belt"><div class="beltline"></div><div class="pkg p1">📦</div><div class="pkg p2">📦</div><div class="pkg p3">📦</div></div>
+      <div class="machine packer"><div class="machine-icon">📦</div><b>Auto Packer</b><small>Lvl <span id="packerLevel">1</span> • <span id="packerSpeed">8</span> pkg/min</small><button onclick="upgrade('packer')">Upgrade • <span id="packerCost">750</span></button></div>
+    </div>
+    <div class="workers"><div>👷 <b>4</b><small>Workers</small></div><div>🚚 <b>2</b><small>Vehicles</small></div><div>📦 <b id="delivered">0</b><small>Delivered today</small></div><div>⭐ <b id="rating">4.8</b><small>Reputation</small></div></div>
+  </div>
+
+  <aside class="panel side">
+    <div class="panel-head"><div><span class="eyebrow">GROWTH</span><h2>Expansion</h2></div></div>
+    <div class="upgrade-row"><span class="icon">🚐</span><div><b>Delivery Van</b><small>+8% delivery speed</small></div><button onclick="buyVehicle()">Buy<br><strong id="vehicleCost">2,500</strong></button></div>
+    <div class="upgrade-row"><span class="icon">👷</span><div><b>Hire Worker</b><small>+6 orders/min</small></div><button onclick="hireWorker()">Hire<br><strong id="workerCost">1,200</strong></button></div>
+    <div class="upgrade-row"><span class="icon">🏭</span><div><b>Warehouse</b><small>Increase capacity</small></div><button onclick="upgradeWarehouse()">Expand<br><strong id="warehouseCost">8,000</strong></button></div>
+    <div class="mission"><div><b>🎯 Daily Mission</b><span>Deliver 100 packages</span></div><div class="progress"><i id="missionBar"></i></div><small><span id="missionCount">0</span>/100 • Reward 500 💰</small></div>
+  </aside>
+</section>
+
+<section class="panel map-panel">
+  <div class="panel-head"><div><span class="eyebrow">NETWORK</span><h2>Your Logistics Map</h2></div><span class="pill">1 / 5 Cities</span></div>
+  <div class="map">
+    <div class="route"></div><div class="city-node active"><span>🏭</span><b>Mumbai</b><small>ACTIVE</small></div>
+    <div class="city-node locked n2"><span>🔒</span><b>Delhi</b><small>Unlock Lv.5</small></div>
+    <div class="city-node locked n3"><span>🔒</span><b>Bengaluru</b><small>Unlock Lv.8</small></div>
+    <div class="city-node locked n4"><span>🔒</span><b>Singapore</b><small>Unlock Lv.15</small></div>
+    <div class="city-node locked n5"><span>🔒</span><b>Dubai</b><small>Unlock Lv.20</small></div>
+  </div>
+</section>
+</main>
+
+<nav class="bottom"><button class="active">🏭<span>Empire</span></button><button onclick="toast('Fleet management is coming in the next content update.')">🚚<span>Fleet</span></button><button onclick="openCEO()">🤖<span>CEO AI</span></button><button onclick="toast('Season 01 challenges are live!')">🏆<span>Season</span></button><button onclick="toast('Settings saved locally.')">⚙️<span>Settings</span></button></nav>
+
+<div class="modal" id="ceo"><div class="modal-card"><button class="close" onclick="closeCEO()">×</button><div class="ai-orb">🤖</div><span class="eyebrow">CEO AI</span><h2>Your logistics strategist</h2><p id="ceoText">Analyzing your operation…</p><div class="recommendation"><b>Recommended next move</b><span id="ceoRec">Upgrade the Smart Sorter to remove your current throughput bottleneck.</span></div><button class="primary full" onclick="closeCEO()">Got it</button></div></div>
+<div class="toast" id="toast"></div>
+<script src="./app.js"></script>
+</body>
+</html>
